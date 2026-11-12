@@ -9,7 +9,9 @@ import { dist, hours, prettyDate, type Units } from '../lib/format';
 import { EARTH_CIRCUMFERENCE_KM, MOON_KM } from '../lib/geo';
 import { airport } from '../lib/airports';
 import type { Flight } from '../lib/types';
+import { airframes } from '../lib/fleet';
 import './passport.css';
+import './fleet.css';
 
 function Guilloche() {
   // Layered rose curves for a banknote-like engraved pattern.
@@ -111,6 +113,7 @@ export default function PassportScreen() {
   const flights = useMemo(() => (year === 'all' ? all : all.filter((f) => f.date.startsWith(year))), [all, year]);
   const s = useMemo(() => (year === 'all' ? allStats : computeStats(flights)), [flights, allStats, year]);
   const badges = useMemo(() => computeBadges(flights, s), [flights, s]);
+  const frames = useMemo(() => airframes(flights), [flights]);
   const visited = useMemo(() => s.countries.map((c) => c.key), [s]);
   const earned = badges.filter((b) => b.earned).length;
   const sortedBadges = useMemo(() => [...badges].sort((a, b) => Number(b.earned) - Number(a.earned) || b.progress - a.progress), [badges]);
@@ -179,6 +182,8 @@ export default function PassportScreen() {
         <Stat label="Airlines" value={String(s.airlines.length)} />
         <Stat label="Countries" value={String(s.countries.length)} />
         <Stat label="Aircraft types" value={String(s.aircraft.length)} />
+        <Stat label="FINs flown" value={String(frames.filter((a) => a.fin).length)} />
+        <Stat label="Repeat aircraft" value={String(frames.filter((a) => a.flights.length > 1).length)} />
         {s.clearRate !== null && <Stat label="Standby clear rate" value={String(Math.round(s.clearRate * 100))} unit="%" />}
         {s.clearRate !== null && <Stat label="Bumps" value={String(s.bumped)} />}
       </div>
@@ -214,6 +219,25 @@ export default function PassportScreen() {
       }} />
       <Ranked title="Top airlines" items={s.airlines} render={(c) => <span>{c.key}</span>} />
       <Ranked title="Top aircraft" items={s.aircraft} render={(c) => <span>{c.key}</span>} />
+
+      <div className="section-title">Fleet · {frames.length} aircraft</div>
+      <div className="list">
+        {frames.slice(0, 5).map((a) => (
+          <button className="row chev af-row" key={a.key} onClick={() => openModal({ type: 'airframe', key: a.key })}>
+            <span className={`af-tag${a.fin ? '' : ' reg'}`}>{a.fin ?? a.reg}</span>
+            <span className="grow">
+              <span className="af-title">{a.fin ? a.reg ?? 'No registration' : 'No FIN yet'}</span><br />
+              <span className="muted af-sub">{a.type ?? a.airline}</span>
+            </span>
+            <span className="af-count num">{a.flights.length}×</span>
+          </button>
+        ))}
+        <button className="row chev" onClick={() => openModal({ type: 'fleet' })}>
+          <span className="grow" style={{ color: 'var(--sky)', fontWeight: 600 }}>
+            {frames.length ? `See all FINs you've flown` : 'Start tracking FINs'}
+          </span>
+        </button>
+      </div>
 
       <div className="section-title">Badges · {earned} / {badges.length}</div>
       <div className="pp-badges">

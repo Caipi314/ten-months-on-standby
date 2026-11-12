@@ -6,14 +6,15 @@ import type { Topology, GeometryCollection } from 'topojson-specification';
 import world from 'world-atlas/countries-110m.json';
 import { airport } from '../lib/airports';
 import { clearFocus, openModal, useNav } from '../lib/nav';
-import { liveFlights, useStore } from '../lib/store';
+import { liveFlights, plannedFlights, useStore } from '../lib/store';
 import { computeStats, flown, numericToAlpha2 } from '../lib/stats';
 import { dist, prettyDate } from '../lib/format';
 import type { Flight } from '../lib/types';
+import { statusChip } from './FlightRow';
 import './globe.css';
 
-interface Arc { key: string; flight: Flight; startLat: number; startLng: number; endLat: number; endLng: number; count: number; km: number }
-interface Pt { iata: string; lat: number; lng: number; visits: number }
+interface Arc { key: string; planned: boolean; flight: Flight; startLat: number; startLng: number; endLat: number; endLng: number; count: number; km: number }
+interface Pt { iata: string; lat: number; lng: number; visits: number; planned: boolean }
 
 const countriesGeo = feature(
   world as unknown as Topology,
@@ -22,6 +23,9 @@ const countriesGeo = feature(
 
 const AMBER = '#ffb547';
 const CORAL = '#ff6b8b';
+const VIOLET = '#a98bff';
+const SKY = '#7cc4ff';
+const routeKey = (f: Flight) => (f.planned ? 'p:' : '') + [f.from, f.to].sort().join('-');
 
 /** Great-circle midpoint, for pointing the camera at a route. */
 function midpoint(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -37,6 +41,7 @@ export default function GlobeScreen({ active }: { active: boolean }) {
   const el = useRef<HTMLDivElement>(null);
   const globe = useRef<GlobeInstance | null>(null);
   const flights = useStore((s) => liveFlights(s));
+  const planned = useStore((s) => plannedFlights(s));
   const units = useStore((s) => s.settings.units);
   const home = useStore((s) => s.settings.homeAirport);
   const { focusFlight } = useNav();
@@ -46,28 +51,32 @@ export default function GlobeScreen({ active }: { active: boolean }) {
   const done = useMemo(() => flown(flights), [flights]);
   const stats = useMemo(() => computeStats(flights), [flights]);
 
-  const { arcs, points, visited } = useMemo(() => {
+  const { arcs, points, visited, upcomingCountries } = useMemo(() => {
     const routes = new Map<string, Arc>();
     const pts = new Map<string, Pt>();
-    for (const f of done) {
+    // Flown first, then planned: an airport you've already been to stays amber even if you're going back.
+    for (const f of [...done, ...planned]) {
       const a = airport(f.from), b = airport(f.to);
       if (!a || !b) continue;
-      const key = [f.from, f.to].sort().join('-');
+      const key = routeKey(f);
       const r = routes.get(key);
       if (r) r.count++;
-      else routes.set(key, { key, flight: f, startLat: a.lat, startLng: a.lon, endLat: b.lat, endLng: b.lon, count: 1, km: f.distanceKm });
+      else routes.set(key, { key, planned: !!f.planned, flight: f, startLat: a.lat, startLng: a.lon, endLat: b.lat, endLng: b.lon, count: 1, km: f.distanceKm });
       for (const ap of [a, b]) {
         const p = pts.get(ap.iata);
-        if (p) p.visits++; else pts.set(ap.iata, { iata: ap.iata, lat: ap.lat, lng: ap.lon, visits: 1 });
+        if (p) { if (!f.planned) p.visits++; }
+        else pts.set(ap.iata, { iata: ap.iata, lat: ap.lat, lng: ap.lon, visits: f.planned ? 0 : 1, planned: !!f.planned });
       }
     }
-    return { arcs: [...routes.values()], points: [...pts.values()], visited: new Set(stats.countries.map((c) => c.key)) };
-  }, [done, stats]);
+    const visited = new Set(stats.countries.map((c) => c.key));
+    const upcomingCountries = new Set(planned.flatMap((f) => [airport(f.from)?.country, airport(f.to)?.country]).filter((c): c is string => !!c && !visited.has(c)));
+    return { arcs: [...routes.values()], points: [...pts.values()], visited, upcomingCountries };
+  }, [done, planned, stats]);
 
   const selectedKey = useMemo(() => {
-    const f = flights.find((x) => x.id === selected);
-    return f ? [f.from, f.to].sort().join('-') : null;
-  }, [selected, flights]);
+    const f = flights.find((x) => x.id === selected) ?? planned.find((x) => x.id === selected);
+    return f ? routeKey(f) : null;
+  }, [selected, flights, planned]);
 
   // --- Create globe once ---
   useEffect(() => {
@@ -90,11 +99,11 @@ export default function GlobeScreen({ active }: { active: boolean }) {
       .arcsTransitionDuration(600)
       .pointLat('lat').pointLng('lng')
       .pointAltitude(0.006)
-      .pointColor(() => '#ffe2b0')
+      .pointColor((p: object) => ((p as Pt).planned ? '#d9ccff' : '#ffe2b0'))
       .pointsMerge(false)
       .labelLat('lat').labelLng('lng')
       .labelText('iata')
-      .labelColor(() => 'rgba(255,236,210,0.85)')
+      .labelColor((p: object) => ((p as Pt).planned ? 'rgba(217,204,255,0.85)' : 'rgba(255,236,210,0.85)'))
       .labelSize(0.55)
       .labelDotRadius(0)
       .labelAltitude(0.008)
@@ -159,32 +168,37 @@ export default function GlobeScreen({ active }: { active: boolean }) {
     if (!g) return;
     g.polygonCapColor((d: object) => {
       const id = String((d as { id?: string | number }).id ?? '').padStart(3, '0');
-      return visited.has(numericToAlpha2(id)) ? 'rgba(255,181,71,0.20)' : 'rgba(120,150,210,0.07)';
+      const a2 = numericToAlpha2(id);
+      return visited.has(a2) ? 'rgba(255,181,71,0.20)' : upcomingCountries.has(a2) ? 'rgba(169,139,255,0.14)' : 'rgba(120,150,210,0.07)';
     });
     g.arcsData(arcs)
       .arcColor((a: object) => {
         const arc = a as Arc;
-        if (selectedKey && arc.key !== selectedKey) return ['rgba(255,181,71,0.18)', 'rgba(255,107,139,0.18)'];
+        const dim = selectedKey && arc.key !== selectedKey;
+        if (arc.planned) return dim ? ['rgba(169,139,255,0.18)', 'rgba(124,196,255,0.18)'] : [VIOLET, SKY];
+        if (dim) return ['rgba(255,181,71,0.18)', 'rgba(255,107,139,0.18)'];
         return [AMBER, CORAL];
       })
+      // Planned routes arc a little higher so they stay visible over a route you've already flown.
+      .arcAltitudeAutoScale((a: object) => ((a as Arc).planned ? 0.55 : 0.42))
       .arcStroke((a: object) => {
         const arc = a as Arc;
         const base = Math.min(0.9, 0.32 + arc.count * 0.08);
         return arc.key === selectedKey ? base + 0.25 : base;
       })
-      .arcDashLength((a: object) => ((a as Arc).key === selectedKey ? 0.5 : 1))
-      .arcDashGap((a: object) => ((a as Arc).key === selectedKey ? 0.08 : 0))
-      .arcDashAnimateTime((a: object) => ((a as Arc).key === selectedKey ? 1600 : 0));
-    g.pointsData(points).pointRadius((p: object) => Math.min(0.55, 0.18 + (p as Pt).visits * 0.025));
+      .arcDashLength((a: object) => ((a as Arc).key === selectedKey ? 0.5 : (a as Arc).planned ? 0.04 : 1))
+      .arcDashGap((a: object) => ((a as Arc).key === selectedKey ? 0.08 : (a as Arc).planned ? 0.025 : 0))
+      .arcDashAnimateTime((a: object) => ((a as Arc).key === selectedKey ? 1600 : (a as Arc).planned ? 9000 : 0));
+    g.pointsData(points).pointRadius((p: object) => Math.min(0.55, (p as Pt).planned ? 0.16 : 0.18 + (p as Pt).visits * 0.025));
     // Only label the busiest airports to keep the globe clean
     g.labelsData([...points].sort((a, b) => b.visits - a.visits).slice(0, 40));
     const last = done[0] && airport(done[0].to);
     g.ringsData(last ? [{ lat: last.lat, lng: last.lon }] : []);
-  }, [arcs, points, visited, selectedKey, done]);
+  }, [arcs, points, visited, upcomingCountries, selectedKey, done]);
 
   // --- Focus a flight (from carousel or "Show on map") ---
   const focus = (id: string) => {
-    const f = flights.find((x) => x.id === id);
+    const f = flights.find((x) => x.id === id) ?? planned.find((x) => x.id === id);
     const a = f && airport(f.from), b = f && airport(f.to);
     if (!f || !a || !b || !globe.current) return;
     setSelected(id);
@@ -205,7 +219,8 @@ export default function GlobeScreen({ active }: { active: boolean }) {
     carousel.current.querySelector(`[data-id="${selected}"]`)?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [selected]);
 
-  const recent = flights.slice(0, 30);
+  // Upcoming flights first (latest → soonest), then flown, so the carousel reads as a timeline around today.
+  const recent = [...[...planned].reverse(), ...flights.slice(0, 30)];
 
   return (
     <div className="globe-screen">
@@ -222,6 +237,7 @@ export default function GlobeScreen({ active }: { active: boolean }) {
           <span><b className="num">{stats.airports.length}</b> airports</span>
           <span><b className="num">{stats.countries.length}</b> countries</span>
           {stats.clearRate != null && <span><b className="num">{Math.round(stats.clearRate * 100)}%</b> cleared</span>}
+          {planned.length > 0 && <span className="pill-planned"><b className="num">{planned.length}</b> planned</span>}
         </div>
       </header>
 
@@ -234,11 +250,12 @@ export default function GlobeScreen({ active }: { active: boolean }) {
         )}
         {recent.map((f) => {
           const a = airport(f.from), b = airport(f.to);
+          const chip = statusChip(f);
           return (
             <button
               key={f.id}
               data-id={f.id}
-              className={`gcard ${selected === f.id ? 'on' : ''} ${f.outcome === 'bumped' ? 'bumped' : ''}`}
+              className={`gcard ${selected === f.id ? 'on' : ''} ${f.planned ? 'planned' : f.outcome === 'bumped' ? 'bumped' : ''}`}
               onClick={() => (selected === f.id ? openModal({ type: 'flight', id: f.id }) : focus(f.id))}
             >
               <div className="gcard-row">
@@ -252,7 +269,7 @@ export default function GlobeScreen({ active }: { active: boolean }) {
               </div>
               <div className="gcard-row gcard-meta">
                 <span>{prettyDate(f.date, { month: 'short', day: 'numeric', year: '2-digit' })} · {f.flightNumber}</span>
-                <span className={`chip ${f.outcome}`}>{f.outcome}</span>
+                <span className={`chip ${chip.cls}`}>{chip.label}</span>
               </div>
             </button>
           );

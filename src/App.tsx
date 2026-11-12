@@ -8,16 +8,19 @@ import AddFlight from './components/AddFlight';
 import FlightDetail from './components/FlightDetail';
 import TripDetail from './components/TripDetail';
 import Settings from './components/Settings';
+import Fleet, { AirframeDetail } from './components/Fleet';
 
 const GlobeScreen = lazy(() => import('./components/GlobeScreen'));
 
 function ModalView({ m, depth }: { m: Modal; depth: number }) {
   switch (m.type) {
     case 'add': return <AddFlight prefill={m.prefill} depth={depth} />;
-    case 'edit': return <AddFlight editId={m.id} depth={depth} />;
+    case 'edit': return <AddFlight editId={m.id} fly={m.fly} depth={depth} />;
     case 'flight': return <FlightDetail id={m.id} depth={depth} />;
     case 'trip': return <TripDetail id={m.id} depth={depth} />;
     case 'settings': return <Settings depth={depth} />;
+    case 'fleet': return <Fleet depth={depth} />;
+    case 'airframe': return <AirframeDetail id={m.key} depth={depth} />;
   }
 }
 

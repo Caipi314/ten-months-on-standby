@@ -29,3 +29,10 @@ export const todayISO = () => {
 };
 
 export const uid = () => crypto.randomUUID();
+
+/** Whole calendar days from today until a YYYY-MM-DD date (negative if past). */
+export const daysUntil = (date: string) => {
+  const [y, m, d] = date.split('-').map(Number);
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(y, m - 1, d).getTime() - t.getTime()) / 86400000);
+};

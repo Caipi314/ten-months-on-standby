@@ -1,0 +1,26 @@
+/* ---------- Fleet / FIN tracking ---------- */
+.af-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; }
+.af-tag {
+  flex: none; min-width: 56px; height: 40px; padding: 0 8px; border-radius: 10px; display: grid; place-items: center;
+  font-family: var(--font-round); font-weight: 800; font-size: 19px; font-variant-numeric: tabular-nums; letter-spacing: 0.02em;
+  color: #0a0e18; background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+.af-tag.reg { font-size: 13px; color: var(--text); background: var(--surface-2); border: 1px solid var(--hair); }
+.af-title { font-weight: 600; font-size: 15px; }
+.af-sub { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+.af-count { font-weight: 700; font-size: 17px; color: var(--text-2); }
+
+.af-missing { margin-top: 12px; padding: 12px 14px; }
+.af-missing-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; text-align: left; font-size: 14px; }
+.af-missing .list { margin: 0 -4px; }
+
+.af-hero { text-align: center; padding: 12px 0 18px; }
+.af-hero-fin {
+  font-family: var(--font-round); font-weight: 800; font-size: 64px; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, #fff 0%, #ffe2b8 100%); -webkit-background-clip: text; background-clip: text; color: transparent;
+  margin-bottom: 6px;
+}
+.af-date { font-size: 18px !important; }
+
+.bp-fin { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; }
+.bp-fin .af-tag { min-width: 48px; height: 34px; font-size: 16px; }

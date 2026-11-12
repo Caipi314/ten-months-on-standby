@@ -44,3 +44,7 @@
 .gcard-sub { font-size: 12px; color: var(--text-2); }
 .gcard-sub span { max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .gcard-meta { margin-top: 4px; font-size: 13px; color: var(--text-2); }
+.globe-pills span.pill-planned { color: #d9ccff; border-color: rgba(169,139,255,0.3); background: rgba(169,139,255,0.12); }
+.gcard.planned { border-style: dashed; border-color: rgba(169,139,255,0.35); }
+.gcard.planned .gcard-line i { background: var(--plan); box-shadow: 0 0 10px var(--plan); }
+.gcard.planned.on { border-color: rgba(169,139,255,0.7); box-shadow: 0 0 0 1px rgba(169,139,255,0.25), 0 10px 30px rgba(140,110,255,0.18); }

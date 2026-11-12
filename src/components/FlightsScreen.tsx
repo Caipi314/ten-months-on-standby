@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { dist, hours, prettyDate, uid } from '../lib/format';
 import { openModal } from '../lib/nav';
 import { clearRateBy, hourBucket, minutesOf, type ClearRow } from '../lib/stats';
-import { liveFlights, liveTrips, saveTrip, useStore } from '../lib/store';
+import { allFlights, liveFlights, liveTrips, plannedFlights, saveTrip, useStore } from '../lib/store';
 import type { Flight, Trip } from '../lib/types';
 import FlightRow from './FlightRow';
 import './flights.css';
@@ -12,6 +12,8 @@ type View = 'flights' | 'trips' | 'standby';
 export default function FlightsScreen() {
   const [view, setView] = useState<View>('flights');
   const flights = useStore((s) => liveFlights(s));
+  const planned = useStore((s) => plannedFlights(s));
+  const all = useStore((s) => allFlights(s));
   return (
     <div className="screen">
       <div className="screen-header"><h1 className="screen-title">Flights</h1></div>
@@ -20,15 +22,30 @@ export default function FlightsScreen() {
           <button key={v} aria-pressed={view === v} onClick={() => setView(v)}>{v[0].toUpperCase() + v.slice(1)}</button>
         ))}
       </div>
-      {!flights.length && view !== 'trips' ? (
+      {!flights.length && !(view === 'flights' && planned.length) && view !== 'trips' ? (
         <div className="empty">
           <div style={{ fontSize: 48, marginBottom: 12 }}>🛫</div>
           <div style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Your passport is empty</div>
           <div style={{ marginBottom: 20 }}>Log your first standby flight and watch your map light up.</div>
-          <button className="btn btn-primary" onClick={() => openModal({ type: 'add' })}>Add a flight</button>
+          <div className="hstack" style={{ justifyContent: 'center' }}>
+            <button className="btn btn-primary" onClick={() => openModal({ type: 'add' })}>Add a flight</button>
+            {view === 'flights' && <button className="btn" onClick={() => openModal({ type: 'add', prefill: { planned: true } })}>Plan one</button>}
+          </div>
         </div>
-      ) : view === 'flights' ? <FlightList flights={flights} /> : view === 'trips' ? <TripList flights={flights} /> : <Standby flights={flights} />}
+      ) : view === 'flights' ? <><Upcoming planned={planned} /><FlightList flights={flights} /></> : view === 'trips' ? <TripList flights={all} /> : <Standby flights={flights} />}
     </div>
+  );
+}
+
+function Upcoming({ planned }: { planned: Flight[] }) {
+  return (
+    <section className="upcoming">
+      <div className="section-title upcoming-title" style={{ marginTop: 0 }}>
+        <span>Upcoming{planned.length ? ` · ${planned.length}` : ''}</span>
+        <button className="link" style={{ fontSize: 15, textTransform: 'none', letterSpacing: 0 }} onClick={() => openModal({ type: 'add', prefill: { planned: true } })}>＋ Plan a flight</button>
+      </div>
+      {planned.length > 0 && <div className="list">{planned.map((f) => <FlightRow key={f.id} f={f} />)}</div>}
+    </section>
   );
 }
 
@@ -69,7 +86,7 @@ export function tripLegs(flights: Flight[], tripId: string): Flight[] {
 }
 
 export function routeChain(legs: Flight[]): string {
-  const flown = legs.filter((f) => f.outcome !== 'bumped');
+  const flown = legs.filter((f) => f.planned || f.outcome !== 'bumped');
   if (!flown.length) return '—';
   const chain = [flown[0].from];
   for (const f of flown) { if (chain[chain.length - 1] !== f.from) chain.push(f.from); chain.push(f.to); }
@@ -103,9 +120,10 @@ function TripList({ flights }: { flights: Flight[] }) {
       {!rows.length && <div className="empty">Group legs into trips, including the reroutes you took when you didn't clear.</div>}
       <div className="stack">
         {rows.map(({ t, legs }) => {
-          const flown = legs.filter((f) => f.outcome !== 'bumped');
+          const flown = legs.filter((f) => !f.planned && f.outcome !== 'bumped');
+          const upcoming = legs.filter((f) => f.planned).length;
           const km = flown.reduce((s, f) => s + f.distanceKm, 0);
-          const bumps = legs.length - flown.length;
+          const bumps = legs.filter((f) => !f.planned && f.outcome === 'bumped').length;
           return (
             <button key={t.id} className="card" style={{ textAlign: 'left', width: '100%' }} onClick={() => openModal({ type: 'trip', id: t.id })}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -115,7 +133,7 @@ function TripList({ flights }: { flights: Flight[] }) {
               <div className="code" style={{ fontSize: 15, color: 'var(--accent)', margin: '6px 0' }}>{routeChain(legs)}</div>
               <div className="muted" style={{ fontSize: 13 }}>
                 {legs.length ? `${prettyDate(legs[0].date, { month: 'short', day: 'numeric' })} – ${prettyDate(legs[legs.length - 1].date)}` : 'No legs yet'}
-                {' · '}{flown.length} leg{flown.length === 1 ? '' : 's'}{bumps ? ` · ${bumps} bump${bumps === 1 ? '' : 's'}` : ''}
+                {' · '}{flown.length} leg{flown.length === 1 ? '' : 's'}{bumps ? ` · ${bumps} bump${bumps === 1 ? '' : 's'}` : ''}{upcoming ? ` · ${upcoming} planned` : ''}
                 {' · '}<span className="num">{dist(km, units)} {units}</span>
                 {flown.length ? ` · ${hours(flown.reduce((s, f) => s + minutesOf(f), 0))}` : ''}
               </div>

@@ -4,10 +4,12 @@ import type { Flight } from './types';
 export type Tab = 'map' | 'flights' | 'passport';
 export type Modal =
   | { type: 'add'; prefill?: Partial<Flight> } // new flight (prefill e.g. tripId) …
-  | { type: 'edit'; id: string } // … or edit existing
+  | { type: 'edit'; id: string; fly?: boolean } // … or edit existing (fly: log a planned flight as flown)
   | { type: 'flight'; id: string } // flight detail / boarding-pass view
   | { type: 'trip'; id: string } // trip detail
-  | { type: 'settings' };
+  | { type: 'settings' }
+  | { type: 'fleet' } // every FIN / airframe flown
+  | { type: 'airframe'; key: string }; // one airframe's flights
 
 interface Nav { tab: Tab; modals: Modal[]; focusFlight: string | null }
 let nav: Nav = { tab: 'map', modals: [], focusFlight: null };

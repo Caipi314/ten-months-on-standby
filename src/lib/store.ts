@@ -102,18 +102,32 @@ export function setSync(p: Partial<SyncState>) {
   setState((s) => ({ ...s, sync: { ...s.sync, ...p } }));
 }
 
-/** Live (non-deleted) flights sorted newest first. Memoized on the flights object identity. */
-let memoSrc: Record<string, Flight> | null = null;
-let memoOut: Flight[] = [];
-export function liveFlights(s: State = state): Flight[] {
-  if (s.flights !== memoSrc) {
-    memoSrc = s.flights;
-    memoOut = Object.values(s.flights)
-      .filter((f) => !f.deleted)
-      .sort((a, b) => (b.date + (b.depSched ?? '')).localeCompare(a.date + (a.depSched ?? '')));
+const sortKey = (f: Flight) => f.date + (f.depSched ?? '');
+/** Every non-deleted flight, flown and planned. Memoized on the flights object identity. */
+let allSrc: Record<string, Flight> | null = null;
+let allOut: Flight[] = [];
+let loggedOut: Flight[] = [];
+let plannedOut: Flight[] = [];
+function split(s: State) {
+  if (s.flights !== allSrc) {
+    allSrc = s.flights;
+    allOut = Object.values(s.flights).filter((f) => !f.deleted).sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+    loggedOut = allOut.filter((f) => !f.planned);
+    plannedOut = allOut.filter((f) => f.planned).reverse(); // soonest first
   }
-  return memoOut;
 }
+/** Logged (flown or bumped) flights, newest first. Planned flights are not included. */
+export function liveFlights(s: State = state): Flight[] { split(s); return loggedOut; }
+/** Planned flights, soonest first. */
+export function plannedFlights(s: State = state): Flight[] { split(s); return plannedOut; }
+/** Logged and planned flights together, newest first (for trips). */
+export function allFlights(s: State = state): Flight[] { split(s); return allOut; }
+
+/** A planned flight that a newly logged flight most likely corresponds to (same day + route, or same day + flight number). */
+export function matchPlanned(f: Pick<Flight, 'date' | 'from' | 'to' | 'flightNumber'>, s: State = state): Flight | undefined {
+  return plannedFlights(s).find((p) => p.date === f.date && ((p.from === f.from && p.to === f.to) || (!!f.flightNumber && p.flightNumber === f.flightNumber)));
+}
+
 let tripSrc: Record<string, Trip> | null = null;
 let tripOut: Trip[] = [];
 export function liveTrips(s: State = state): Trip[] {

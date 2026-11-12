@@ -1,5 +1,6 @@
 import { airport } from './airports';
 import { EARTH_CIRCUMFERENCE_KM, MOON_KM } from './geo';
+import { airframes } from './fleet';
 import { computeStats, flown, minutesOf, type Stats } from './stats';
 import type { Flight } from './types';
 
@@ -28,6 +29,9 @@ export function computeBadges(all: Flight[], s: Stats = computeStats(all)): Badg
   const days = new Map<string, number>();
   for (const f of fs) days.set(f.date, (days.get(f.date) ?? 0) + 1);
   const maxDay = Math.max(0, ...days.values());
+  const frames = airframes(all);
+  const fins = frames.filter((a) => a.fin).length;
+  const mostOnOne = frames[0]?.flights.length ?? 0;
   const bumpedThenCleared = all.some((b) => b.outcome === 'bumped' && all.some((c) => c.outcome === 'cleared' && c.date === b.date && c.from === b.from && c.to === b.to));
 
   return [
@@ -42,6 +46,8 @@ export function computeBadges(all: Flight[], s: Stats = computeStats(all)): Badg
     step('apt50', '🏢', 'Terminal Collector', 'Visit 50 airports', s.airports.length, 50),
     step('al10', '🛩️', 'Alliance Hopper', 'Fly 10 airlines', s.airlines.length, 10),
     step('ac10', '🔧', 'Plane Spotter', 'Fly 10 aircraft types', s.aircraft.length, 10),
+    step('fin25', '🔢', 'Tail Chaser', 'Fly on 25 different FINs', fins, 25),
+    step('fin5x', '🤝', 'Old Friend', 'Fly the same aircraft 5 times', mostOnOne, 5),
     step('lh', '⏳', 'Ultra Long Haul', 'Fly a 12h+ flight', longHaul, 1),
     step('eq', '🧊', 'Line Crosser', 'Cross the equator', crossedEquator ? 1 : 0, 1),
     step('dl', '📅', 'Time Traveller', 'Cross the date line', crossedDateline ? 1 : 0, 1),

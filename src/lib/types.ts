@@ -15,9 +15,13 @@ export interface Flight {
   arrActual?: string | null;
   aircraft?: string | null;
   registration?: string | null;
+  /** Fleet identification number painted on the aircraft (e.g. Air Canada FIN 301). */
+  fin?: string | null;
   seat?: string | null;
   cabin?: Cabin | null;
   outcome: Outcome;
+  /** Upcoming flight that hasn't been flown yet. Excluded from stats until it's logged as flown. */
+  planned?: boolean;
   notes?: string | null;
   distanceKm: number;
   durationMin?: number | null;

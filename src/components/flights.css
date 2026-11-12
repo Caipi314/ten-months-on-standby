@@ -75,3 +75,18 @@ select.input { appearance: none; -webkit-appearance: none; }
 .rate-row + .rate-row { border-top: 1px solid var(--hair); }
 .rate-row .top { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; font-size: 15px; }
 .bar.good > span { background: linear-gradient(90deg, var(--good), #9be7c4); }
+
+/* Planned flights */
+.status-seg > button { font-size: 13px; }
+.status-seg > button.planned[aria-pressed='true'] { background: rgba(169, 139, 255, 0.24); color: #d9ccff; }
+.hint { font-size: 13px; color: var(--text-3); margin: 6px 4px 0; line-height: 1.35; }
+.note { padding: 12px 14px; border-radius: 12px; background: rgba(169, 139, 255, 0.12); color: #d9ccff; font-size: 14px; line-height: 1.35; }
+.fr.planned .fr-route .arrow { color: var(--plan); }
+.fr.planned .fr-date .d { color: var(--plan); }
+.upcoming { margin-top: 16px; }
+.upcoming .list { border-color: rgba(169, 139, 255, 0.22); }
+.upcoming-title { display: flex; justify-content: space-between; align-items: baseline; }
+.tl-item.planned::before { background: transparent; border: 2px solid var(--plan); width: 8px; height: 8px; }
+.bp.planned .bp-path { color: var(--plan); }
+.bp.planned .bp-path .line { border-top-color: rgba(169, 139, 255, 0.55); }
+.bp.planned .bp-top::before { background: radial-gradient(80% 60% at 100% 0%, rgba(169, 139, 255, 0.2), transparent 60%); }
