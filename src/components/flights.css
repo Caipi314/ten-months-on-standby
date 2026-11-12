@@ -47,7 +47,7 @@
 .ap-btn .code { font-size: 30px; line-height: 1; }
 .ap-btn .city { font-size: 13px; color: var(--text-2); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .ap-btn.empty .code { color: var(--text-3); }
-.ap-overlay { position: fixed; inset: 0; z-index: 100; background: var(--bg-2); display: flex; flex-direction: column; padding-top: calc(var(--safe-top) + 10px); animation: up 0.28s cubic-bezier(0.2, 0.9, 0.2, 1); }
+.ap-overlay { position: absolute; inset: 0; z-index: 100; background: var(--bg-2); display: flex; flex-direction: column; padding-top: calc(var(--safe-top) + 10px); animation: up 0.28s cubic-bezier(0.2, 0.9, 0.2, 1); }
 .ap-overlay .head { display: flex; gap: 10px; align-items: center; padding: 8px 16px 12px; }
 .ap-overlay .results { flex: 1; overflow-y: auto; padding: 0 16px calc(var(--safe-bottom) + 24px); }
 .ap-row { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; padding: 12px 4px; border-bottom: 1px solid var(--hair); }

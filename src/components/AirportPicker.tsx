@@ -39,7 +39,7 @@ export default function AirportPicker({ value, onChange, label }: Props) {
             {!results.length && <div className="empty">No airports match “{q}”.</div>}
           </div>
         </div>
-      , document.body)}
+      , document.getElementById('root') ?? document.body)}
     </>
   );
 }

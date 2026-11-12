@@ -25,7 +25,10 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body, #root { height: 100%; margin: 0; }
+html, body { height: var(--app-h, 100%); margin: 0; }
+/* #root is the app frame: everything is positioned against it (not the viewport), because iOS
+   standalone PWAs with a translucent status bar report a viewport that is short by the top inset. */
+#root { position: relative; height: var(--app-h, 100%); overflow: hidden; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -118,27 +121,40 @@ textarea.input { height: auto; min-height: 88px; padding: 12px 14px; resize: non
 .empty { text-align: center; padding: 48px 24px; color: var(--text-2); }
 
 /* ---------- Tab bar ---------- */
+/* Floating pill with the three tabs, plus a separate round "+" button on the right. */
+.dock {
+  position: absolute; left: 16px; right: 16px; z-index: 20;
+  bottom: max(12px, calc(var(--safe-bottom) - 8px));
+  display: flex; align-items: center; gap: 12px; pointer-events: none;
+}
+.dock > * { pointer-events: auto; }
 .tabbar {
-  position: fixed; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 8px); height: var(--tabbar-h);
-  display: flex; align-items: center; justify-content: space-around; z-index: 20;
-  background: rgba(16, 20, 32, 0.78); border: 1px solid var(--hair); border-radius: 24px;
-  backdrop-filter: blur(30px) saturate(160%); -webkit-backdrop-filter: blur(30px) saturate(160%);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  flex: 1; height: var(--tabbar-h); padding: 0 6px;
+  display: grid; grid-template-columns: repeat(3, 1fr); align-items: center;
+  background: rgba(18, 23, 36, 0.72); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 32px;
+  backdrop-filter: blur(30px) saturate(170%); -webkit-backdrop-filter: blur(30px) saturate(170%);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
-.tab { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 11px; font-weight: 600; color: var(--text-3); width: 72px; }
+.tab {
+  height: calc(var(--tabbar-h) - 12px); border-radius: 26px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  font-size: 11px; font-weight: 600; color: var(--text-3); transition: color 0.2s, background 0.2s;
+}
 .tab svg { width: 24px; height: 24px; }
-.tab[aria-current='page'] { color: var(--text); }
+.tab[aria-current='page'] { color: var(--text); background: rgba(255, 255, 255, 0.09); }
+.tab:active { transform: scale(0.96); }
 .fab {
-  width: 52px; height: 52px; border-radius: 18px; display: grid; place-items: center;
+  flex: 0 0 auto; width: var(--tabbar-h); height: var(--tabbar-h); border-radius: 50%; display: grid; place-items: center;
   background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #1a0e00;
-  box-shadow: 0 6px 24px rgba(255, 140, 90, 0.45);
+  box-shadow: 0 8px 28px rgba(255, 140, 90, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
-.fab svg { width: 26px; height: 26px; }
+.fab:active { transform: scale(0.94); }
+.fab svg { width: 28px; height: 28px; }
 
 /* ---------- Modal sheet ---------- */
-.sheet-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 40; animation: fade 0.25s ease; }
+.sheet-backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 40; animation: fade 0.25s ease; }
 .sheet {
-  position: fixed; left: 0; right: 0; bottom: 0; top: calc(var(--safe-top) + 10px); z-index: 41;
+  position: absolute; left: 0; right: 0; bottom: 0; top: calc(var(--safe-top) + 10px); z-index: 41;
   background: var(--bg-2); border-radius: 22px 22px 0 0; border-top: 1px solid var(--hair);
   display: flex; flex-direction: column; animation: up 0.32s cubic-bezier(0.2, 0.9, 0.2, 1);
 }

@@ -20,7 +20,7 @@
 .globe-pills b { color: var(--text); font-weight: 700; }
 
 .globe-carousel {
-  position: absolute; left: 0; right: 0; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 18px);
+  position: absolute; left: 0; right: 0; bottom: calc(max(12px, calc(var(--safe-bottom) - 8px)) + var(--tabbar-h) + 12px);
   display: flex; gap: 10px; overflow-x: auto; padding: 4px 16px; scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }

@@ -40,19 +40,16 @@ export default function App() {
       {nav.tab === 'flights' && <FlightsScreen />}
       {nav.tab === 'passport' && <PassportScreen />}
 
-      <nav className="tabbar">
-        {tabs.slice(0, 2).map((t) => (
-          <button key={t.id} className="tab" aria-current={nav.tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            <t.icon />{t.label}
-          </button>
-        ))}
+      <div className="dock">
+        <nav className="tabbar">
+          {tabs.map((t) => (
+            <button key={t.id} className="tab" aria-current={nav.tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
+              <t.icon />{t.label}
+            </button>
+          ))}
+        </nav>
         <button className="fab" aria-label="Add flight" onClick={() => openModal({ type: 'add' })}><PlusIcon /></button>
-        {tabs.slice(2).map((t) => (
-          <button key={t.id} className="tab" aria-current={nav.tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            <t.icon />{t.label}
-          </button>
-        ))}
-      </nav>
+      </div>
 
       {nav.modals.map((m, i) => <ModalView key={i} m={m} depth={i} />)}
     </>
