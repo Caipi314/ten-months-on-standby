@@ -28,7 +28,11 @@
 html, body { height: var(--app-h, 100%); margin: 0; }
 /* #root is the app frame: everything is positioned against it (not the viewport), because iOS
    standalone PWAs with a translucent status bar report a viewport that is short by the top inset. */
-#root { position: relative; height: var(--app-h, 100%); overflow: hidden; }
+#root { position: relative; height: var(--app-h, 100%); overflow: hidden; transform: translateY(var(--app-top, 0px)); }
+/* While typing, the frame is only the area above the keyboard: hide the dock and the drag grabber. */
+.kb-open .dock { display: none; }
+.kb-open .sheet { top: calc(var(--safe-top) + 4px); }
+.kb-open .sheet .grabber { display: none; }
 body {
   background: var(--bg);
   color: var(--text);
@@ -98,13 +102,18 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .btn-block { width: 100%; }
 .btn-danger { color: var(--bad); }
 .link { color: var(--sky); font-weight: 600; font-size: 17px; }
-.field { display: flex; flex-direction: column; gap: 6px; }
+.field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .field > label { font-size: 13px; color: var(--text-2); font-weight: 500; padding-left: 4px; }
 .input {
   width: 100%; height: 48px; padding: 0 14px; border-radius: 12px; font: inherit; font-size: 17px;
   color: var(--text); background: var(--surface-2); border: 1px solid var(--hair); outline: none;
 }
 .input:focus { border-color: var(--sky); }
+/* iOS gives native date/time pickers an intrinsic min-width that ignores width:100%. */
+input.input[type='date'], input.input[type='time'], input.input[type='datetime-local'] {
+  -webkit-appearance: none; appearance: none; min-width: 0; max-width: 100%; display: block; line-height: 48px;
+}
+input.input::-webkit-date-and-time-value { text-align: left; margin: 0; }
 textarea.input { height: auto; min-height: 88px; padding: 12px 14px; resize: none; }
 .seg { display: flex; background: var(--surface-2); border-radius: 12px; padding: 3px; gap: 3px; border: 1px solid var(--hair); }
 .seg > button { flex: 1; height: 38px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--text-2); }
