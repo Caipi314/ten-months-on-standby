@@ -90,3 +90,4 @@ select.input { appearance: none; -webkit-appearance: none; }
 .bp.planned .bp-path { color: var(--plan); }
 .bp.planned .bp-path .line { border-top-color: rgba(169, 139, 255, 0.55); }
 .bp.planned .bp-top::before { background: radial-gradient(80% 60% at 100% 0%, rgba(169, 139, 255, 0.2), transparent 60%); }
+.return-card { padding: 14px; border-color: rgba(255, 255, 255, 0.12); }

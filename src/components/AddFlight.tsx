@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { airport } from '../lib/airports';
 import { airframeKey, airframes, finIndex, normalizeFin, normalizeReg } from '../lib/fleet';
 import { prettyDate, timeOf, todayISO, uid } from '../lib/format';
@@ -82,6 +82,39 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
   const [src, setSrc] = useState<Partial<Flight>>(existing ?? {});
   const [saved, setSaved] = useState<Flight | null>(null);
 
+  // Optional return leg (new flights only): same airports reversed, saved alongside the outbound.
+  const canReturn = !existing && !fly;
+  const [roundTrip, setRoundTrip] = useState(false);
+  const retRef = useRef<HTMLDivElement>(null);
+  const [retDate, setRetDate] = useState('');
+  const [retNum, setRetNum] = useState('');
+  const [retDep, setRetDep] = useState('');
+  const [retArr, setRetArr] = useState('');
+  const [retAircraft, setRetAircraft] = useState('');
+  const [retPlanned, setRetPlanned] = useState(true);
+  const [retOutcome, setRetOutcome] = useState<Outcome>('cleared');
+  const [retTouched, setRetTouched] = useState(false);
+  const [retSrc, setRetSrc] = useState<Partial<Flight>>({});
+  const [retLoading, setRetLoading] = useState(false);
+  const [retMsg, setRetMsg] = useState<string | null>(null);
+  const changeRetDate = (d: string) => { setRetDate(d); if (!retTouched && d) setRetPlanned(d > todayISO()); };
+
+  async function lookupReturn() {
+    setRetMsg(null); setRetLoading(true);
+    try {
+      const r = await lookupFlight(retNum, retDate);
+      const hit = r.find((x) => x.from === to && x.to === from) ?? (r.length === 1 ? r[0] : undefined);
+      if (!hit) { setRetMsg(r.length ? `${normalizeFlightNumber(retNum)} doesn't fly ${to} → ${from} that day.` : `No flight ${normalizeFlightNumber(retNum)} found on that date.`); return; }
+      setRetDep(timeOf(hit.depSched) === '—' ? '' : timeOf(hit.depSched));
+      setRetArr(timeOf(hit.arrSched) === '—' ? '' : timeOf(hit.arrSched));
+      setRetAircraft(hit.aircraft ?? '');
+      setRetSrc({ date: retDate, depSched: hit.depSched, arrSched: hit.arrSched, depActual: hit.depActual, arrActual: hit.arrActual, distanceKm: hit.distanceKm ?? undefined, durationMin: hit.durationMin, airline: hit.airline, registration: hit.registration });
+      setRetMsg(`✓ Found ${hit.from} → ${hit.to}${hit.aircraft ? ` · ${hit.aircraft}` : ''}`);
+    } catch (e) {
+      setRetMsg(e instanceof Error ? e.message : 'Lookup failed.');
+    } finally { setRetLoading(false); }
+  }
+
   async function doLookup() {
     setError(null); setResults(null); setLoading(true);
     try {
@@ -105,10 +138,20 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
   }
 
   const fromOk = !!airport(from), toOk = !!airport(to);
-  const valid = fromOk && toOk && from !== to && !!date;
+  const retValid = !roundTrip || (!!retDate && retDate >= date);
+  const valid = fromOk && toOk && from !== to && !!date && retValid;
 
   // Logging a flight you'd planned replaces the plan instead of duplicating it.
   const match = !existing && !planned && valid ? matchPlanned({ date, from, to, flightNumber: normalizeFlightNumber(num) }) : undefined;
+  const retMatch = roundTrip && !retPlanned && valid ? matchPlanned({ date: retDate, from: to, to: from, flightNumber: normalizeFlightNumber(retNum) }) : undefined;
+
+  // Keep the API's full timestamp when the user didn't change the time; otherwise build one from the local time.
+  function times(d: string, dep: string, arr: string, s: Partial<Flight>) {
+    const keep = (t: string, orig?: string | null) => (orig && timeOf(orig) === t && d === s.date ? orig : null);
+    const depSched = dep ? keep(dep, s.depSched) ?? `${d}T${dep}` : null;
+    const arrSched = arr ? keep(arr, s.arrSched) ?? `${dep && arr < dep ? addDay(d) : d}T${arr}` : null;
+    return { depSched, arrSched, fromSource: depSched === s.depSched && arrSched === s.arrSched };
+  }
 
   function save() {
     if (!valid) return;
@@ -117,11 +160,8 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
       tId = uid();
       saveTrip({ id: tId, name: newTrip.trim(), updatedAt: '' });
     }
-    const keep = (t: string, orig?: string | null) => (orig && timeOf(orig) === t && date === src.date ? orig : null);
-    const depSched = depTime ? keep(depTime, src.depSched) ?? `${date}T${depTime}` : null;
-    const arrSched = arrTime ? keep(arrTime, src.arrSched) ?? `${depTime && arrTime < depTime ? addDay(date) : date}T${arrTime}` : null;
+    const { depSched, arrSched, fromSource: timesFromSource } = times(date, depTime, arrTime, src);
     const routeChanged = existing && (existing.from !== from || existing.to !== to);
-    const timesFromSource = depSched === src.depSched && arrSched === src.arrSched;
     const f: Flight = {
       id: existing?.id ?? match?.id ?? uid(),
       tripId: tId ?? match?.tripId ?? null,
@@ -144,6 +184,29 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
       updatedAt: '',
     };
     saveFlight(f);
+    if (roundTrip) {
+      const r = times(retDate, retDep, retArr, retSrc);
+      saveFlight({
+        id: retMatch?.id ?? uid(),
+        tripId: tId ?? retMatch?.tripId ?? null,
+        date: retDate,
+        flightNumber: normalizeFlightNumber(retNum),
+        airline: retSrc.airline || airline.trim() || retMatch?.airline || '',
+        from: to, to: from,
+        depSched: r.depSched, arrSched: r.arrSched,
+        depActual: retSrc.depActual ?? null, arrActual: retSrc.arrActual ?? null,
+        aircraft: retAircraft.trim() || null,
+        registration: retSrc.registration || null,
+        fin: (retSrc.registration && known.finByReg.get(normalizeReg(retSrc.registration))) || null,
+        seat: retMatch?.seat || null,
+        cabin: cabin ?? retMatch?.cabin ?? null, outcome: retOutcome,
+        planned: retPlanned || undefined,
+        notes: retMatch?.notes || null,
+        distanceKm: retSrc.distanceKm || routeKm(to, from),
+        durationMin: r.fromSource ? retSrc.durationMin ?? null : null,
+        updatedAt: '',
+      });
+    }
     if ((!existing || fly) && !planned && outcome === 'bumped') { setSaved(f); setStep('bumped'); }
     else closeModal();
   }
@@ -215,6 +278,20 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
           <AirportPicker label="To" value={to} onChange={setTo} />
         </div>
         {from && to && from === to && <div className="err">Origin and destination are the same.</div>}
+        {canReturn && (
+          <div className="seg">
+            <button type="button" aria-pressed={!roundTrip} onClick={() => setRoundTrip(false)}>One way</button>
+            <button type="button" aria-pressed={roundTrip} onClick={() => {
+              setRoundTrip(true);
+              if (!retDate && date) changeRetDate(addDay(date));
+              // Scroll only the sheet body (scrollIntoView can also shift #root on iOS).
+              setTimeout(() => {
+                const el = retRef.current, body = el?.closest('.sheet-body');
+                if (el && body) body.scrollBy({ top: el.getBoundingClientRect().top - body.getBoundingClientRect().top - 80, behavior: 'smooth' });
+              }, 50);
+            }}>Round trip</button>
+          </div>
+        )}
 
         <div className="field">
           <label>Status</label>
@@ -269,9 +346,40 @@ export default function AddFlight({ prefill, editId, fly, depth }: Props) {
           </select>
           {newTrip !== null && <input className="input" autoFocus placeholder="Trip name" value={newTrip} onChange={(e) => setNewTrip(e.target.value)} />}
         </div>
+        {canReturn && roundTrip && (
+          <div className="card return-card stack" ref={retRef}>
+            <div className="hstack" style={{ justifyContent: 'space-between' }}>
+              <div className="code" style={{ fontSize: 17 }}>{to || '—'} <span style={{ color: 'var(--accent)' }}>✈︎</span> {from || '—'}</div>
+              <span className="muted" style={{ fontSize: 13 }}>Return · same trip & cabin</span>
+            </div>
+            <div className="two">
+              <div className="field"><label>Date</label><input className="input" type="date" value={retDate} min={date} onChange={(e) => changeRetDate(e.target.value)} /></div>
+              <div className="field"><label>Flight number</label><input className="input code" value={retNum} placeholder="AC857" autoCapitalize="characters" autoCorrect="off" spellCheck={false} onChange={(e) => setRetNum(e.target.value.toUpperCase())} onKeyDown={(e) => e.key === 'Enter' && retNum && retDate && lookupReturn()} /></div>
+            </div>
+            {retDate && retDate < date && <div className="err">Return is before the outbound flight.</div>}
+            <button type="button" className="btn btn-block" disabled={!normalizeFlightNumber(retNum) || !retDate || retLoading} onClick={lookupReturn}>
+              {retLoading ? 'Searching…' : 'Look up return'}
+            </button>
+            {retMsg && <div className={retMsg.startsWith('✓') ? 'hint' : 'err'}>{retMsg}</div>}
+            <div className="two">
+              <div className="field"><label>Departs (local)</label><input className="input" type="time" value={retDep} onChange={(e) => setRetDep(e.target.value)} /></div>
+              <div className="field"><label>Arrives (local)</label><input className="input" type="time" value={retArr} onChange={(e) => setRetArr(e.target.value)} /></div>
+            </div>
+            <div className="field">
+              <label>Status</label>
+              <div className="seg status-seg">
+                <button type="button" className="planned" aria-pressed={retPlanned} onClick={() => { setRetPlanned(true); setRetTouched(true); }}>Planned</button>
+                {outcomes.map(([v, l]) => (
+                  <button key={v} type="button" aria-pressed={!retPlanned && retOutcome === v} onClick={() => { setRetPlanned(false); setRetOutcome(v); setRetTouched(true); }}>{l}</button>
+                ))}
+              </div>
+            </div>
+            {retMatch && <div className="note">✓ Matches your planned return. Saving logs it as flown.</div>}
+          </div>
+        )}
         <div className="field"><label>Notes</label><textarea className="input" value={notes} placeholder="Loads, list position, gate agent was lovely…" onChange={(e) => setNotes(e.target.value)} /></div>
 
-        <button className="btn btn-primary btn-block" disabled={!valid} onClick={save}>{fly ? 'Log as flown' : existing ? 'Save changes' : planned ? 'Add to upcoming' : match ? 'Log planned flight' : 'Add to passport'}</button>
+        <button className="btn btn-primary btn-block" disabled={!valid} onClick={save}>{fly ? 'Log as flown' : existing ? 'Save changes' : roundTrip ? 'Add both flights' : planned ? 'Add to upcoming' : match ? 'Log planned flight' : 'Add to passport'}</button>
         {existing && (
           <button className="btn btn-block btn-danger" onClick={() => { if (confirm('Delete this flight?')) { deleteFlight(existing.id); closeAll(); } }}>Delete flight</button>
         )}
