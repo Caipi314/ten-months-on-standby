@@ -65,7 +65,7 @@ function SyncPanel() {
         <input className="input" type="url" inputMode="url" placeholder="https://xxxx.supabase.co" value={url}
           autoCapitalize="off" autoCorrect="off" spellCheck={false} onChange={(e) => setUrl(e.target.value)} />
       </div>
-      <div className="field"><label>Anon public key</label><SecretInput value={key} onChange={setKey} placeholder="eyJhbGciOi…" /></div>
+      <div className="field"><label>Publishable key</label><SecretInput value={key} onChange={setKey} placeholder="sb_publishable_… (or legacy eyJ… anon key)" /></div>
       <div className="set-status"><span className={`set-dot ${dot}`} /><span className={sync.status === 'error' ? '' : 'muted'} style={sync.status === 'error' ? { color: 'var(--bad)' } : undefined}>{statusText}</span></div>
 
       {sync.status === 'signed-out' && (
@@ -99,8 +99,9 @@ function SyncPanel() {
         <ol>
           <li>Create a free project at <a href="https://supabase.com" target="_blank" rel="noreferrer">supabase.com</a>.</li>
           <li>Open SQL Editor and run <code>supabase/schema.sql</code> from this app’s repo.</li>
-          <li>Copy the Project URL and the <em>anon public</em> key from Project Settings → API into the fields above.</li>
+          <li>Click <em>Connect</em> at the top of your Supabase project and copy the Project URL and the <em>publishable</em> key (starts with <code>sb_publishable_</code>) into the fields above. Never use the secret key.</li>
           <li>Create an account here. If email confirmation is on, confirm it from your inbox, then sign in.</li>
+          <li>On every other device, enter the same URL and key and sign in with the <em>same</em> email.</li>
         </ol>
       </div>
     </div>

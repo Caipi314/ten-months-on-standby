@@ -117,6 +117,23 @@ export default function GlobeScreen({ active }: { active: boolean }) {
     c.maxDistance = 600;
     c.addEventListener('start', () => { c.autoRotate = false; });
 
+    // globe.gl ships near=0.05 / far=125000. That 2.5M:1 ratio leaves almost no depth
+    // precision once the camera pulls back, so the country fills and borders (only
+    // 0.4 units above the surface) z-fight with the globe and flicker. Fit the clip
+    // planes tightly around the globe every frame instead.
+    const R = g.getGlobeRadius();
+    g.scene().onBeforeRender = (_r, _s, cam) => {
+      const camera = cam as typeof cam & { near: number; far: number; updateProjectionMatrix(): void };
+      const d = camera.position.length();
+      const near = Math.min(50, Math.max(1, (d - R) / 4));
+      const far = d + R * 1.5; // back of the globe + atmosphere
+      if (Math.abs(camera.near - near) > 0.01 || Math.abs(camera.far - far) > 0.5) {
+        camera.near = near;
+        camera.far = far;
+        camera.updateProjectionMatrix();
+      }
+    };
+
     const h = airport(home);
     g.pointOfView({ lat: h?.lat ?? 30, lng: h?.lon ?? -40, altitude: 2.7 }, 0);
 

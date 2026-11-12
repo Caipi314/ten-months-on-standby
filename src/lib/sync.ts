@@ -47,36 +47,55 @@ export async function syncNow() {
   running = true;
   setSync({ status: 'syncing', message: null });
   try {
-    const s = getState();
-    // 1. Push dirty rows
+    // Full two-way reconcile on every sync. (An incremental "changed since last pull" filter is
+    // unsafe here: updated_at is the editing device's clock, so rows uploaded late by another
+    // device can carry timestamps older than our last pull and would never be downloaded.)
     for (const table of ['flights', 'trips'] as const) {
-      const ids = s.dirty[table];
-      if (!ids.length) continue;
-      const rows = ids
-        .map((id) => s[table][id])
-        .filter(Boolean)
-        .map((d) => ({ id: d.id, data: d, updated_at: d.updatedAt, deleted: !!d.deleted }));
-      const { error } = await sb.from(table).upsert(rows);
-      if (error) throw error;
-      setState((st) => ({ ...st, dirty: { ...st.dirty, [table]: st.dirty[table].filter((id) => !ids.includes(id) || st[table][id]?.updatedAt !== s[table][id]?.updatedAt) } }));
-    }
-    // 2. Pull remote changes since last pull
-    const since = getState().lastPull ?? '1970-01-01T00:00:00Z';
-    const startedAt = new Date().toISOString();
-    for (const table of ['flights', 'trips'] as const) {
-      const { data, error } = await sb.from(table).select('id,data,updated_at,deleted').gt('updated_at', since).limit(5000);
-      if (error) throw error;
-      if (!data?.length) continue;
+      // 1. Download everything this account has on the server.
+      const remote = new Map<string, Row>();
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await sb.from(table).select('id,data,updated_at,deleted').order('id').range(from, from + 999);
+        if (error) throw error;
+        for (const r of (data ?? []) as Row[]) remote.set(r.id, r);
+        if (!data || data.length < 1000) break;
+      }
+
+      // 2. Merge: whichever side was edited most recently wins.
       setState((st) => {
         const next = { ...st[table] } as Record<string, Flight | Trip>;
-        for (const r of data as Row[]) {
+        for (const r of remote.values()) {
           const local = next[r.id];
-          if (!local || local.updatedAt < r.updated_at) next[r.id] = { ...r.data, updatedAt: r.updated_at, deleted: r.deleted };
+          const remoteTime = Date.parse(r.updated_at);
+          if (!local || Date.parse(local.updatedAt) < remoteTime) next[r.id] = { ...r.data, updatedAt: r.updated_at, deleted: r.deleted };
         }
         return { ...st, [table]: next };
       });
+
+      // 3. Upload anything the server is missing or has an older copy of.
+      const s = getState();
+      const local = Object.values(s[table]) as (Flight | Trip)[];
+      const toPush = local.filter((d) => {
+        const r = remote.get(d.id);
+        return !r || Date.parse(d.updatedAt) > Date.parse(r.updated_at) || !!d.deleted !== r.deleted;
+      });
+      for (let i = 0; i < toPush.length; i += 500) {
+        const rows = toPush.slice(i, i + 500).map((d) => ({ id: d.id, data: d, updated_at: d.updatedAt, deleted: !!d.deleted }));
+        const { error } = await sb.from(table).upsert(rows);
+        if (error) throw error;
+      }
+
+      // Anything we just reconciled is no longer dirty (unless it was edited again meanwhile).
+      const pushed = new Map(toPush.map((d) => [d.id, d.updatedAt]));
+      setState((st) => ({
+        ...st,
+        dirty: { ...st.dirty, [table]: st.dirty[table].filter((id) => {
+          const cur = st[table][id]?.updatedAt;
+          const r = remote.get(id);
+          return !(pushed.get(id) === cur || (r && cur && Date.parse(r.updated_at) >= Date.parse(cur)));
+        }) },
+      }));
     }
-    setState((st) => ({ ...st, lastPull: startedAt }));
+    setState((st) => ({ ...st, lastPull: new Date().toISOString() }));
     setSync({ status: 'idle', lastSync: new Date().toISOString() });
   } catch (e) {
     setSync({ status: 'error', message: e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e) });
